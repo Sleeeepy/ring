@@ -2,49 +2,70 @@
 /* dependencies:
 <script src="https://cdn.socket.io/socket.io-1.3.5.js"></script>
 <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
-<script src="//cdn.webrtc-experiment.com/DetectRTC.js"></script>
+<script src="http://cdn.webrtc-experiment.com/DetectRTC.js"></script>
 */
 
 ;(function(global,io,detectRTC){
 
   var EZWebRTC = function(){
-      return new this.init();
+      return new EZWebRTC.init();
   };
 
+
   //private variables not accessible from outside module
-  var a =0;
+  var a ={b:0};
 
   //public methods and properties shared by all instances
   EZWebRTC.prototype = {
-        checkRTC : checkRTC.bind(this),
+
+        checkRTC : function(callback){
+                      checkRTC.call(this,callback);
+                    },
+        info     : function(msg){
+                      this.socket.emit('info',msg);
+                    },
+
         prop2: 'asdfas'
     };
 
 
 
   var checkRTC = function(callback){
+    var self = this;
     detectRTC.load(function() {
-      this.hasWebcam   = DetectRTC.hasWebcam;
-      this.hasMic      = DetectRTC.hasMicrophone;
-      this.hasSpeakers = DetectRTC.hasSpeakers;
-      this.hasScrnCptr = DetectRTC.isScreenCapturingSupported;
-      this.hasDesktopC = DetectRTC.isDesktopCapturingSupported;
-      this.hasDataChan = DetectRTC.isSctpDataChannelsSupported;
-      this.hasWebRTC   = DetectRTC.isWebRTCSupported;
-      this.hasAudioConext = DetectRTC.isAudioContextSupported;
-      this.isMobileDev = DetectRTC.isMobileDevice;
-      this.hasWebsocket = DetectRTC.isWebSocketsSupported;
+      self.supports = {
+          webcam          : DetectRTC.hasWebcam,
+          microphone      : DetectRTC.hasMicrophone,
+          speakers        : DetectRTC.hasSpeakers,
+          screenCapture   : DetectRTC.isScreenCapturingSupported,
+          desktopCapture  : DetectRTC.isDesktopCapturingSupported,
+          datachannel     : DetectRTC.isSctpDataChannelsSupported,
+          webRTC          : DetectRTC.isWebRTCSupported,
+          audioContext    : DetectRTC.isAudioContextSupported,
+          isMobileDev     : DetectRTC.isMobileDevice,
+          webSocket       : DetectRTC.isWebSocketsSupported
+      }
 
       //minimum requirements for EZcall
-      this.hasCall = this.hasWebsocket && this.hasWebRTC && this.hasMic;
-      this.hasVideoCall = this.hasCall && this.hasVideo;
-
-});
+      self.supports.calls = self.supports.webSocket &&
+                            self.supports.webRTC &&
+                            self.supports.microphone;
+      self.supports.videoCalls = self.supports.calls && self.supports.webcam;
+      callback();
+    });
+  }
 
   //constructor
   EZWebRTC.init = function(){
-    this.socket = io('http://localhost:9000',{path:'/socket.io-client'});
-    this.
+    var self = this;
+    self.checkRTC(function(){
+        if(self.supports.calls){
+          self.socket = io('http://localhost:9000',{path:'/socket.io-client'});
+          console.log(self);
+        }
+    });
+
+
   };
 
   EZWebRTC.init.prototype = EZWebRTC.prototype;
@@ -54,3 +75,5 @@
   global.EZWebRTC = global.EZWebRTC || EZWebRTC;
 
 }(window,io,DetectRTC))
+
+myrtc = window.EZWebRTC();
