@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+    <head>
+
+      <!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">-->
+      <link rel="stylesheet" href="videoChat.css" media="screen" title="no title" charset="utf-8">
+      <link rel="stylesheet" href="https://s3.eu-central-1.amazonaws.com/ezcall/videoChat.css">
+      <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+
+
+    </head>
+
+    <body>
+    <div class="ez-call container">
+      <button id="startCall" type="button" class="btn-success"><span class="glyphicon glyphicon-earphone"></span> Call us for free!</button>
+      <div class="panel panel-info col-lg-3">
+        <div class="panel-heading">
+          <h3 class="panel-title">ezCall</h3>
+        </div>
+        <div class="panel-body">
+          <video id="localVideo"></video><br>
+          <meter id="localVolume" min="-45" max="-20" low="-40" high="-25"></meter>
+          <button type="button" name="button" id="button1"><span class="glyphicon glyphicon-facetime-video"></span></button>
+          <button type="button" name="button" id="button2"><span class="glyphicon glyphicon-volume-off"></span></button>
+          <div id="remotes"></div>
+
+        </div>
+      </div>
+
+    </div>
+
+
+
+
+
+
+      <div class="panel panel-default">
+        <div class="panel-heading"><?php echo $heading_title; ?></div>
+        <div class="panel-content" style="text-align: center;"><?php echo $helloworld_value; ?></div>
+
+
+      </div>
+
+
+
+
+
+        <script src="https://cdn.socket.io/socket.io-1.3.5.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+        <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+        <script src="http://simplewebrtc.com/latest.js"></script>
+        <script src="//cdn.webrtc-experiment.com/DetectRTC.js"></script>
+        <script src="videoChat.js"></script>
+    </body>
+
+
+</html>

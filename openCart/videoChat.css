@@ -1,0 +1,54 @@
+div.ez-call{
+  display: inline;
+}
+
+
+#remoteVideos video {
+    height: 250px;
+    border: 2px;
+}
+#localVideo {
+    height: 150px;
+    display: none;
+}
+
+.videoContainer {
+    position: relative;
+    width: 350px;
+    height: 250px;
+    float: left;
+}
+.videoContainer video {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.volume {
+    position: absolute;
+    left: 15%;
+    width: 70%;
+    bottom: 2px;
+    height: 10px;
+}
+
+
+.muted, .paused{
+    display: none
+    position: absolute
+    z-index: 1
+    color: #12acef
+}
+
+
+.muted{
+    left: 0px
+    bottom: 10%
+    width: 100%
+}
+
+.paused{
+  left: 0px
+  top: 40%
+  width: 100%
+}
