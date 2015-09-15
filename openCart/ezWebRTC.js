@@ -4,13 +4,9 @@
 <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
 <script src="http://cdn.webrtc-experiment.com/DetectRTC.js"></script>
 */
-
+//module exports:  EZWebRTC, EZSignal
 ;(function(global,io,detectRTC){
-
-  var EZWebRTC = function(){
-      return new EZWebRTC.init();
-  };
-
+  var signalingChannel;
 
   //private variables not accessible from outside module
   var config = {
@@ -41,17 +37,25 @@
   var peerConnection =  mozRTCPeerConnection
                         || webkitRTCPeerConnection;
 
+  var EZWebRTC = function(){
+      return new EZWebRTC.init();
+  };
+
   //public methods and properties shared by all instances
   EZWebRTC.prototype = {
 
+        detect:      function(callback){
+          var self = this;
+          self.checkRTC(function(){
+              if(self.supports.calls){
+                self.socket = new EZSignal(config.socket);
+                self.pc     = new peerConnection(config.pc);
+                if(callback){callback();}
+              }
+          });
+        },
 
-        //signalling
-        info:       function(msg){
-                      this.socket.emit('info',msg);
-                    },
-        signal:     function(data){
-                      this.socket.emit('signal',data);
-                    },
+
         //detect supports requires injection of
         //<script src="http://cdn.webrtc-experiment.com/DetectRTC.js"></script>
         checkRTC:   function(callback){
@@ -85,15 +89,8 @@
 
 
   //constructor
-  EZWebRTC.init = function(){
-    var self = this;
-    self.checkRTC(function(){
-        if(self.supports.calls){
-          self.socket = io(config.socket.url,config.socket.opts);
-          self.pc     = new peerConnection(config.pc);
-          console.log(self);
-        }
-    });
+  EZWebRTC.init = function(el){
+    this.el = el;
 
 
   };
@@ -101,9 +98,37 @@
   EZWebRTC.init.prototype = EZWebRTC.prototype;
 
 
+
+  //Signalling channel requires socket.io
+  var EZSignal = function(config){
+    this.socket = io(config.url,config.opts);
+    this.socket.on('signal',function(data){
+      this.onSignal(data);
+    }
+    )
+  };
+
+  EZSignal.prototype = {
+    signal: function(data){
+              this.socket.emit('signal',data);
+    },
+    info: function(msg){
+                this.socket.emit('info',msg);
+    },
+    onSignal: function(data){} //to be replaced
+  }
+
+
+
   //expose EZWebRTC to global object;
   global.EZWebRTC = global.EZWebRTC || EZWebRTC;
 
 }(window,io,DetectRTC))
 
-myrtc = window.EZWebRTC();
+myrtc = EZWebRTC();
+console.log('myrtc',myrtc);
+myrtc.detect(function(){
+  console.log('calls',myrtc.supports.calls);
+  console.log($('.panel'));
+
+});
