@@ -1,7 +1,9 @@
 div.ez-call{
-  display: inline;
+  display: none;
 }
-
+div.ez-call .panel-body{
+  display:none;
+}
 
 #remoteVideos video {
     height: 250px;

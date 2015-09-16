@@ -82,6 +82,36 @@
                         callback();
                       })
                     },
+        start:      function () {
+                        pc = this.pc;
+                        var signal = EZSignal();
+
+                        // send any ice candidates to the other peer
+                        pc.onicecandidate = function (evt) {
+                          if (evt.candidate){
+                            signal.signal({candidate: evt.candidate});
+                          }
+                        };
+
+                        // let the 'negotiationneeded' event trigger offer generation
+                        pc.onnegotiationneeded = function () {
+                          pc.createOffer(localDescCreated, logError);
+                        }
+
+                        // once remote stream arrives, show it in the remote video element
+                        pc.onaddstream = function (evt) {
+                          remoteView.src = URL.createObjectURL(evt.stream);
+                        };
+
+                        // get a local stream, show it in a self-view and add it to be sent
+                        navigator.getUserMedia({
+                          'audio': true,
+                          'video': true
+                        }, function (stream) {
+                          selfView.src = URL.createObjectURL(stream);
+                          pc.addStream(stream);
+                        }, logError);
+                      }
     };
 
 
@@ -100,7 +130,8 @@
 
 
   //Signalling channel requires socket.io
-  var EZSignal = function(config){
+  var EZSignal = function(){
+    var config = congig.socket;
     this.socket = io(config.url,config.opts);
     this.socket.on('signal',function(data){
       this.onSignal(data);
@@ -115,20 +146,59 @@
     info: function(msg){
                 this.socket.emit('info',msg);
     },
-    onSignal: function(data){} //to be replaced
+    onSignal: function(){} //to be replaced
   }
 
+
+
+  //requires jQuery
+  var EZCallWidget = function(el){
+    this.widget = $(el);
+  }
+
+  EZCallWidget.prototype = {
+    onClickIcon:  function(listener){
+                    this.widget.find('.btn').on('click',listener);
+    }
+  }
 
 
   //expose EZWebRTC to global object;
   global.EZWebRTC = global.EZWebRTC || EZWebRTC;
 
+
 }(window,io,DetectRTC))
 
-myrtc = EZWebRTC();
-console.log('myrtc',myrtc);
-myrtc.detect(function(){
-  console.log('calls',myrtc.supports.calls);
-  console.log($('.panel'));
 
+
+$(document).ready(function() {
+
+    if( !DetectRTC || !DetectRTC.isWebRTCSupported || !DetectRTC.isWebSocketsSupported){
+      console.log('EZCall not available - Your browser does not support WebRTC');
+    }else{
+      $('div.ez-call').show();
+      $('div.ez-call .btn').on('click',function(){
+        console.log('button works');
+        $('div.ez-call .panel-body').slideToggle( "slow", function() {
+    // Animation complete.
+  });
+      });
+      //detect async if video and mic are available
+      DetectRTC.load(function(){
+        //widget starts with video and audio disabled
+        if(DetectRTC.hasMicrophone){
+
+            console.log('ready for call')
+            //attach call button
+            ezWebRTC = EZWebRTC();
+        }
+        if(DetectRTC.hasWebcam){
+          console.log('ready for call')
+        }
+
+
+      });
+    }
+    console.log( "ready!" );
+    console.log($('.panel'));
 });
