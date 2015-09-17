@@ -44,13 +44,14 @@
   //public methods and properties shared by all instances
   EZWebRTC.prototype = {
 
+
         detect:      function(callback){
           var self = this;
           self.checkRTC(function(){
               if(self.supports.calls){
                 self.socket = new EZSignal(config.socket);
                 self.pc     = new peerConnection(config.pc);
-                if(callback){callback();}
+                if(callback){callback(self.supports);}
               }
           });
         },
@@ -119,8 +120,13 @@
 
 
   //constructor
-  EZWebRTC.init = function(el){
-    this.el = el;
+  EZWebRTC.init = function(){
+    this.supports = {
+      ezWebRTC: DetectRTC.isWebRTCSupported && DetectRTC.isWebSocketsSupported,
+      webRTC: DetectRTC.isWebRTCSupported,
+      webSockets: DetectRTC.isWebRTCSupported,
+    }
+
 
 
   };
@@ -152,14 +158,62 @@
 
 
   //requires jQuery
-  var EZCallWidget = function(el){
-    this.widget = $(el);
+  var EZCallWidget = function(){
+    //load detect, then on document ready show/hide
+    var self = this;
+    self.ezWebRTC = EZWebRTC();
+    $(document).ready(self.initWidget);
   }
 
   EZCallWidget.prototype = {
-    onClickIcon:  function(listener){
-                    this.widget.find('.btn').on('click',listener);
-    }
+    element:      '.ez-call',
+
+    initWidget:     function(){
+                      var self      = this,
+                          supports  = self.ezWebRTC.supports;
+
+                      self.$widget = $('.ez-call');
+                      if(!supports.ezWebRTC){
+                        console.log('ezCall not available');
+                        return
+                      }
+                      self.widget.show();
+                      self.ezWebRTC.detect(function(){
+                        if(supoprts.video){
+                          self.enableVideo();
+                        }else if (suports.calls){
+                          self.enableAudio();
+                        }else{
+
+                        }
+                      });
+                    },
+
+    onClickIcon:    function(listener){
+                      this.widget.find('.btn').on('click',listener);
+                    },
+
+
+    enableVideo:    function(){
+
+                    },
+    disableVideo:   function(){
+
+                    },
+    enableAudio:    function(){
+
+                    },
+    disableAudio:   function(){
+
+                    },
+    addRemote:      function(stream){
+
+                    },
+    addLocal:       function(stream){
+
+                    },
+
+
   }
 
 
