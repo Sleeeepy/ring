@@ -44,46 +44,26 @@
   //public methods and properties shared by all instances
   EZWebRTC.prototype = {
 
+    //detect supports requires injection of
+    //<script src="http://cdn.webrtc-experiment.com/DetectRTC.js"></script>
+        detect:   function(callback){
+                        var supports = this.supports;
+                        DetectRTC.load(function(){
+                            supports.calls      = supports.ezWebRTC &&
+                                                  DetectRTC.hasMicrophone;
+                            supports.videoCalls = supports.ezWebRTC &&
+                                                  DetectRTC.hasWebcam;
+                            if(callback){
+                              callback(supports);
+                            }
+                        });
+                  },
 
-        detect:      function(callback){
-          var self = this;
-          self.checkRTC(function(){
-              if(self.supports.calls){
-                self.socket = new EZSignal(config.socket);
-                self.pc     = new peerConnection(config.pc);
-                if(callback){callback(self.supports);}
-              }
-          });
-        },
 
+        start:    function () {
+                        self.socket = new EZSignal(config.socket);
+                        self.pc     = new peerConnection(config.pc);
 
-        //detect supports requires injection of
-        //<script src="http://cdn.webrtc-experiment.com/DetectRTC.js"></script>
-        checkRTC:   function(callback){
-                      var self = this;
-                      detectRTC.load(function() {
-                        self.supports = {
-                            webcam          : DetectRTC.hasWebcam,
-                            microphone      : DetectRTC.hasMicrophone,
-                            speakers        : DetectRTC.hasSpeakers,
-                            screenCapture   : DetectRTC.isScreenCapturingSupported,
-                            desktopCapture  : DetectRTC.isDesktopCapturingSupported,
-                            datachannel     : DetectRTC.isSctpDataChannelsSupported,
-                            webRTC          : DetectRTC.isWebRTCSupported,
-                            audioContext    : DetectRTC.isAudioContextSupported,
-                            isMobileDev     : DetectRTC.isMobileDevice,
-                            webSocket       : DetectRTC.isWebSocketsSupported
-                        }
-
-                        //minimum requirements for EZcall
-                        self.supports.calls = self.supports.webSocket &&
-                                              self.supports.webRTC &&
-                                              self.supports.microphone;
-                        self.supports.videoCalls = self.supports.calls && self.supports.webcam;
-                        callback();
-                      })
-                    },
-        start:      function () {
                         pc = this.pc;
                         var signal = EZSignal();
 
@@ -113,22 +93,18 @@
                           pc.addStream(stream);
                         }, logError);
                       }
-    };
-
-
-
-
+                  };
 
   //constructor
   EZWebRTC.init = function(){
     this.supports = {
-      ezWebRTC: DetectRTC.isWebRTCSupported && DetectRTC.isWebSocketsSupported,
-      webRTC: DetectRTC.isWebRTCSupported,
+      ezWebRTC:   DetectRTC.isWebRTCSupported &&
+                  DetectRTC.isWebSocketsSupported,
+
+      webRTC:     DetectRTC.isWebRTCSupported,
+
       webSockets: DetectRTC.isWebRTCSupported,
     }
-
-
-
   };
 
   EZWebRTC.init.prototype = EZWebRTC.prototype;
@@ -136,82 +112,87 @@
 
 
   //Signalling channel requires socket.io
-  var EZSignal = function(){
-    var config = congig.socket;
-    this.socket = io(config.url,config.opts);
-    this.socket.on('signal',function(data){
-      this.onSignal(data);
-    }
-    )
+  var EZSignal = function(conf){
+      var config = conf || config.socket;
+      this.socket = io(config.url,config.opts);
   };
 
   EZSignal.prototype = {
-    signal: function(data){
-              this.socket.emit('signal',data);
-    },
-    info: function(msg){
-                this.socket.emit('info',msg);
-    },
-    onSignal: function(){} //to be replaced
+
+      signal:     function(data){
+                    this.socket.emit('signal',data);
+                  },
+
+      info:       function(msg){
+                    this.socket.emit('info',msg);
+                  },
+
+      onSignal:   function(callback){
+                    this.socket.on('signal',function(data){
+                      callback(data);
+                    });
+                  }
   }
 
 
 
   //requires jQuery
   var EZCallWidget = function(){
-    //load detect, then on document ready show/hide
-    var self = this;
-    self.ezWebRTC = EZWebRTC();
-    $(document).ready(self.initWidget);
+      //load detect, then on document ready show/hide
+      var self = this;
+      self.ezWebRTC = EZWebRTC();
+      $(document).ready(self.initWidget);
   }
 
   EZCallWidget.prototype = {
-    element:      '.ez-call',
+      element:      '.ez-call',
 
-    initWidget:     function(){
-                      var self      = this,
-                          supports  = self.ezWebRTC.supports;
+      initWidget:     function(){
+                        var self      = this,
+                            supports  = self.ezWebRTC.supports;
 
-                      self.$widget = $('.ez-call');
-                      if(!supports.ezWebRTC){
-                        console.log('ezCall not available');
-                        return
-                      }
-                      self.widget.show();
-                      self.ezWebRTC.detect(function(){
-                        if(supoprts.video){
-                          self.enableVideo();
-                        }else if (suports.calls){
-                          self.enableAudio();
-                        }else{
-
+                        //find dom element and show if browser capable
+                        self.$widget = $('.ez-call');
+                        if(!supports.ezWebRTC){
+                          return console.log('ezCall not available');
                         }
-                      });
-                    },
+                        self.widget.show();
 
-    onClickIcon:    function(listener){
-                      this.widget.find('.btn').on('click',listener);
-                    },
+                        //detect async supports and enable buttons
+                        self.ezWebRTC.detect(function(){
+                          if(supports.video){
+                            self.enableVideo();
+                          }else if (supports.calls){
+                            self.enableAudio();
+                          }else{
+
+                          }
+                        });
+                      },
+
+      onClickIcon:    function(listener){
+                        this.widget.find('.btn').on('click',listener);
+                      },
 
 
-    enableVideo:    function(){
+      enableVideo:    function(){
 
-                    },
-    disableVideo:   function(){
+                      },
+      disableVideo:   function(){
 
-                    },
-    enableAudio:    function(){
+                      },
+      enableAudio:    function(){
 
-                    },
-    disableAudio:   function(){
+                      },
+      disableAudio:   function(){
 
-                    },
-    addRemote:      function(stream){
+                      },
+      addRemote:      function(stream){
 
-                    },
-    addLocal:       function(stream){
+                      },
+      addLocal:       function(stream){
 
-                    },
+                      },
 
 
   }
