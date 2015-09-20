@@ -34,6 +34,11 @@
           }
 
   }
+
+  function logError(error) {
+    log(error.name + ': ' + error.message);
+  }
+
   var peerConnection =  mozRTCPeerConnection
                         || webkitRTCPeerConnection;
 
@@ -61,11 +66,9 @@
 
 
         start:    function () {
-                        self.socket = new EZSignal(config.socket);
-                        self.pc     = new peerConnection(config.pc);
-
-                        pc = this.pc;
-                        var signal = EZSignal();
+                        var self = this;
+                        var signal = self.signal = new EZSignal(config.socket);
+                        var pc     = self.pc     = new peerConnection(config.pc);
 
                         // send any ice candidates to the other peer
                         pc.onicecandidate = function (evt) {
@@ -92,17 +95,22 @@
                           selfView.src = URL.createObjectURL(stream);
                           pc.addStream(stream);
                         }, logError);
+
+                        function localDescCreated(desc) {
+                          pc.setLocalDescription(desc, function () {
+                            self.signal.signal({'sdp': pc.localDescription});
+                          }, logError);
+                        }
+
                       }
-                  };
+      };
 
   //constructor
   EZWebRTC.init = function(){
     this.supports = {
       ezWebRTC:   DetectRTC.isWebRTCSupported &&
                   DetectRTC.isWebSocketsSupported,
-
       webRTC:     DetectRTC.isWebRTCSupported,
-
       webSockets: DetectRTC.isWebRTCSupported,
     }
   };
