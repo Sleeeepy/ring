@@ -11,6 +11,12 @@ var UserSchema = new Schema({
     type: String,
     default: 'user'
   },
+  status: {
+    type: String,
+    default:'pending'
+  },
+  domain: { type: String, lowercase: true },
+  key: String,
   hashedPassword: String,
   provider: String,
   salt: String
