@@ -43,16 +43,59 @@ var config = {
         }
 
 }
-
+// Helper functions
 function logError(error) {
   log(error.name + ': ' + error.message);
 }
+
+//merges prototypes of child and super object
+function inherit(ctor, supCtor){
+    for (var prop in supCtor.prototype){
+        if(!ctor.prototype[prop]){
+          ctor.prototype[prop] = supCtor.prototype[prop];
+        }
+    }
+}
+
+//Basic EventHandler serving as super class for EZWebRTC
+var EventHandler = function(){
+      this.events = {}
+}
+
+EventHandler.prototype = {
+
+  on:   function(eventName, fn) {
+            this.events[eventName] = this.events[eventName] || [];
+            this.events[eventName].push(fn);
+        },
+
+  off:  function(eventName, fn) {
+            if (this.events[eventName]) {
+              for (var i = 0; i < this.events[eventName].length; i++) {
+                if (this.events[eventName][i] === fn) {
+                  this.events[eventName].splice(i, 1);
+                  break;
+                }
+              };
+            }
+        },
+
+  emit: function(eventName, data) {
+            if (this.events[eventName]) {
+              this.events[eventName].forEach(function(fn) {
+                fn(data);
+              });
+            }
+        }
+};
+
 
 
 
 var EZWebRTC = function(){
     return new EZWebRTC.init();
 };
+
 
 //public methods and properties shared by all instances
 EZWebRTC.prototype = {
@@ -102,6 +145,7 @@ EZWebRTC.prototype = {
 
                     // once remote stream arrives, show it in the remote video element
                     pc.onaddstream = function (evt) {
+                      self.emit('remoteStream',evt.stream);
                       //remoteView.src = URL.createObjectURL(evt.stream);
                     };
     },//<--start
@@ -145,15 +189,15 @@ EZWebRTC.prototype = {
     },
 
     setupPC:        function(options){
-                      options = options || {video:false, audio:true};
+                      options = options || {video:true, audio:true};
                       options.video = options.video || false;
                       options.audio = options.audio || false;
-
-                      var pc  = this.pc  = new peerConnection(config.pc);
+                      var self = this;
+                      var pc   = this.pc  = new peerConnection(config.pc);
 
                       // get a local stream, show it in a self-view and add it to be sent
                       navigator.getUserMedia(options, function (stream) {
-                        //selfView.src = URL.createObjectURL(stream);
+                        self.emit('localStream',stream);
                         pc.addStream(stream);
                       }, logError);
 
@@ -168,9 +212,11 @@ EZWebRTC.prototype = {
     }
 
 };
+inherit(EZWebRTC,EventHandler);
 
 //constructor
 EZWebRTC.init = function(){
+  EventHandler.call(this);
   var self = this;
   this.supports = {
     ezWebRTC:   DetectRTC.isWebRTCSupported &&
@@ -256,6 +302,7 @@ var EZCallWidget = function(){
     //load detect, then on document ready show/hide
     var self = this;
     this.ezWebRTC = EZWebRTC();
+    this.ezWebRTC.on('localStream',self.addLocal.bind(this));
     $(document).ready(self.initWidget.bind(self));
 }
 
@@ -317,12 +364,34 @@ EZCallWidget.prototype = {
                     },
     addLocal:       function(stream){
 
+                      this.$widget.find('video').attr('src', URL.createObjectURL(stream));
+                      console.log(this.$widget.find('video'));
+                      console.log(this.$widget.find('video').src);
+
                     },
 
 
 }
 
 
+
+var Child = function(name){
+  EventHandler.call(this);
+  this.name = name;
+}
+
+Child.prototype.sayName = function(){
+    console.log('my name is ' + this.name);
+  }
+
+inherit(Child,EventHandler)
+
+
+var child = new Child('elamr');
+console.log(child)
+
+child.on('sayname',child.sayName.bind(child));
+child.emit('sayname');
 //expose EZWebRTC to global object;
 global.EZWebRTC     = global.EZWebRTC || EZWebRTC;
 global.EZCallWidget = global.EZCallWidget || EZCallWidget;

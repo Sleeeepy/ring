@@ -2,7 +2,7 @@ div.ez-call{
   display: none;
 }
 div.ez-call .panel-body{
-  display:none;
+  display:inline;
 }
 
 #remoteVideos video {
@@ -10,8 +10,9 @@ div.ez-call .panel-body{
     border: 2px;
 }
 #localVideo {
-    height: 150px;
-    display: none;
+    height: 100%;
+    width: 100%;
+    display: inline;
 }
 
 .videoContainer {
