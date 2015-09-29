@@ -5,11 +5,11 @@ div.ez-call .panel-body{
   display:inline;
 }
 
-#remoteVideos video {
+.remoteVideos video {
     height: 250px;
     border: 2px;
 }
-#localVideo {
+.localVideo {
     height: 100%;
     width: 100%;
     display: inline;

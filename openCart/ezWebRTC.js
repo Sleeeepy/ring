@@ -1,4 +1,4 @@
-'use explicit';
+
 /* dependencies:
 <script src="https://cdn.socket.io/socket.io-1.3.5.js"></script>
 <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
@@ -6,6 +6,7 @@
 */
 //module exports:  EZWebRTC, EZSignal
 ;(function(global,io,detectRTC){
+'use strict';
 var key = 'asdlkfjidiasd23;342h'
 //private variables not accessible from outside module
 var peerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection ||
@@ -116,57 +117,47 @@ EZWebRTC.prototype = {
               },
 
 //https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/WebRTC_basics
-    start:      function (options) {
-                    var self     = this,
-                        ezSignal = this.ezSignal,
-                        pc       = this.setupPC(options);
-
-                    // offer generation triggered by pc.addstream
-                    pc.onnegotiationneeded = function () {
-                        var remoteOpts = {
-                                offerToReceiveAudio: true,
-                                offerToReceiveVideo: true
-                        };
-                        pc.createOffer(function (offer) {
-                          pc.setLocalDescription(offer, function () {
-                            ezSignal.sendOffer(pc.localDescription);
-                          }, logError);
-                        }, logError, remoteOpts);
-                    }
-
-                    // send any ice candidates to the other peer
-                    // Firefox includes ice candidate in sdp
-                    pc.onicecandidate = function (evt) {
-                      if (evt.candidate){
-                        ezSignal.sendICE(evt.candidate);
-                        pc.onicecandidate = false; // stop listening
-                      }
-                    };
-
-                    // once remote stream arrives, show it in the remote video element
-                    pc.onaddstream = function (evt) {
-                      self.emit('remoteStream',evt.stream);
-                      //remoteView.src = URL.createObjectURL(evt.stream);
-                    };
-    },//<--start
-
-    startVidoeCall: function(){
-                      this.start({ video:false, audio: true });
+    startVideoCall: function(){
+                      this.createOffer({ video:true, audio: true });
     },
 
     startAudioCall: function(){
-                      this.start({ video:false, audio: true });
+                      this.createOffer({ video:false, audio: true });
     },
 
-    answer:         function(offer,options){
-                      console.log('offer received:',offer);
-                      this.setupPC(options);
+    createOffer:  function (options) {
+                    this.setupPC(options);
 
+                    // offer generation triggered by pc.addstream
+                    this.pc.onnegotiationneeded = this.sendOffer.bind(this);
+    },
+
+    sendOffer:      function(){
                       var pc       = this.pc,
                           ezSignal = this.ezSignal;
 
-                      offer = new sessionDescription(offer)
-                      pc.setRemoteDescription(offer);
+                      var remoteOpts = {
+                              offerToReceiveAudio: true,
+                              offerToReceiveVideo: true
+                      };
+
+                      pc.createOffer(function (offer) {
+                        pc.setLocalDescription(offer, function () {
+                          ezSignal.sendOffer(pc.localDescription);
+                        }, logError);
+                      }, logError, remoteOpts);
+    },
+
+    handleOffer:    function(offer,options){
+                        //returns pc, calls sendAnswer on add media
+                        this.setupPC(options,this.sendAnswer.bind(this));
+                        offer = new sessionDescription(offer)
+                        this.pc.setRemoteDescription(offer,console.log,logError);
+    },
+
+    sendAnswer:    function(offer){
+                      var ezSignal = this.ezSignal,
+                          pc       = this.pc;
 
                       pc.createAnswer(function (answer) {
                           pc.setLocalDescription(answer, function() {
@@ -176,29 +167,40 @@ EZWebRTC.prototype = {
     },
 
     handleAnswer:   function(answer){
-                      console.log('answer received:',answer);
+                      var pc = this.pc;
                       answer = new sessionDescription(answer);
-                      this.pc.setRemoteDescription(answer, function(){}, logError);
+                      pc.setRemoteDescription(answer, console.log, logError);
     },
 
     handleICE:      function(iceCandidate){
-                      console.log('ice received',iceCandidate);
                       iceCandidate = new RTCIceCandidate(iceCandidate);
                       this.pc.addIceCandidate(iceCandidate);
-
+                      //make sure pc exists!!!!!!!!!!
     },
 
-    setupPC:        function(options){
+    setupPC:        function(options,callback){
                       options = options || {video:true, audio:true};
-                      options.video = options.video || false;
-                      options.audio = options.audio || false;
-                      var self = this;
-                      var pc   = this.pc  = new peerConnection(config.pc);
 
+                      var self = this;
+                      var pc   = this.pc  = new peerConnection(config.pc),
+                          ezSignal = this.ezSignal;
+
+                      // send any ice candidates to the other peer
+                      // Firefox includes ice candidate in sdp
+                      pc.onicecandidate = function (evt) {
+                        if (!evt.candidate){return}
+                        ezSignal.sendICE(evt.candidate);
+                        pc.onicecandidate = false; // stop listening
+                      };
+                      // once remote stream arrives, show it in the remote video element
+                      pc.onaddstream = function (evt) {
+                        self.emit('remoteStream',evt.stream);
+                      };
                       // get a local stream, show it in a self-view and add it to be sent
                       navigator.getUserMedia(options, function (stream) {
                         self.emit('localStream',stream);
                         pc.addStream(stream);
+                        if(callback){callback();}
                       }, logError);
 
                       return pc;
@@ -217,23 +219,15 @@ inherit(EZWebRTC,EventHandler);
 //constructor
 EZWebRTC.init = function(){
   EventHandler.call(this);
-  var self = this;
   this.supports = {
-    ezWebRTC:   DetectRTC.isWebRTCSupported &&
-                DetectRTC.isWebSocketsSupported,
+    ezWebRTC:   DetectRTC.isWebRTCSupported && DetectRTC.isWebSocketsSupported,
     webRTC:     DetectRTC.isWebRTCSupported,
     webSockets: DetectRTC.isWebRTCSupported,
   };
-  this.ezSignal = new EZSignal(config.socket);
-  this.ezSignal.onOffer(function(offer){
-    self.answer(offer);
-  });
-  this.ezSignal.onAnswer(function(answer){
-    self.handleAnswer(answer);
-  });
-  this.ezSignal.onICE(function(candidate){
-    self.handleICE(candidate);
-  });
+  var ezSignal = this.ezSignal = new EZSignal(config.socket);
+  ezSignal.onOffer(this.handleOffer.bind(this));
+  ezSignal.onAnswer(this.handleAnswer.bind(this));
+  ezSignal.onICE(this.handleICE.bind(this));
 };
 
 EZWebRTC.init.prototype = EZWebRTC.prototype;
@@ -303,6 +297,7 @@ var EZCallWidget = function(){
     var self = this;
     this.ezWebRTC = EZWebRTC();
     this.ezWebRTC.on('localStream',self.addLocal.bind(this));
+    this.ezWebRTC.on('remoteStream',self.addRemote.bind(this));
     $(document).ready(self.initWidget.bind(self));
 }
 
@@ -311,7 +306,7 @@ EZCallWidget.prototype = {
 
     initWidget:     function(){
                       var self      = this,
-                          supports  = self.ezWebRTC.supports;
+                          supports  = self.ezWebRTC.supports,
                           ezWebRTC  = self.ezWebRTC;
 
                       //find dom element and show if browser capable
@@ -326,14 +321,14 @@ EZCallWidget.prototype = {
                         if(supports.videoCalls){
 
                           self.onClickIcon(function(){
-                            ezWebRTC.start();
+                            ezWebRTC.startVideoCall();
                           });
                           self.enableVideo();
 
                         }else if (supports.calls){
 
                           self.onClickIcon(function(){
-                            ezWebRTC.start();
+                            ezWebRTC.startAudioCall();
                           });
                           self.enableAudio();
 
@@ -360,13 +355,15 @@ EZCallWidget.prototype = {
 
                     },
     addRemote:      function(stream){
-
+                      console.log('adding remote');
+                      this.$widget.find('.remoteVideo').attr('src', URL.createObjectURL(stream));
+                      console.log(this.$widget.find('.remoteVideo'));
                     },
     addLocal:       function(stream){
 
-                      this.$widget.find('video').attr('src', URL.createObjectURL(stream));
-                      console.log(this.$widget.find('video'));
-                      console.log(this.$widget.find('video').src);
+                      this.$widget.find('.localVideo').attr('src', URL.createObjectURL(stream));
+
+
 
                     },
 
@@ -374,7 +371,7 @@ EZCallWidget.prototype = {
 }
 
 
-
+/*
 var Child = function(name){
   EventHandler.call(this);
   this.name = name;
@@ -391,7 +388,7 @@ var child = new Child('elamr');
 console.log(child)
 
 child.on('sayname',child.sayName.bind(child));
-child.emit('sayname');
+child.emit('sayname');*/
 //expose EZWebRTC to global object;
 global.EZWebRTC     = global.EZWebRTC || EZWebRTC;
 global.EZCallWidget = global.EZCallWidget || EZCallWidget;
@@ -399,4 +396,4 @@ global.EZCallWidget = global.EZCallWidget || EZCallWidget;
 
 }(window,io,DetectRTC))
 
-ezCallWidget = new EZCallWidget();
+var ezCallWidget = new EZCallWidget();
