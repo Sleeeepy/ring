@@ -12,6 +12,7 @@ module.exports.register = function(socket){
     }
     socket.on('signal',function(data){
       socket.broadcast.emit('signal',data);
+      console.log('signal',socket.id,data.type)
     });
     socket.on('message', function (message) {
       console.log('signal ', socket.id);

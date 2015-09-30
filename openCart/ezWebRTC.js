@@ -46,7 +46,7 @@ var config = {
 }
 // Helper functions
 function logError(error) {
-  log(error.name + ': ' + error.message);
+  console.log(error.name + ': ' + error.message);
 }
 
 //merges prototypes of child and super object
@@ -118,7 +118,7 @@ EZWebRTC.prototype = {
 
 //https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/WebRTC_basics
     startVideoCall: function(){
-                      this.createOffer({ video:true, audio: true });
+                      this.createOffer({ video: true, audio: true });
     },
 
     startAudioCall: function(){
@@ -140,7 +140,7 @@ EZWebRTC.prototype = {
                               offerToReceiveAudio: true,
                               offerToReceiveVideo: true
                       };
-
+                      console.log('in sendOffer')
                       pc.createOffer(function (offer) {
                         pc.setLocalDescription(offer, function () {
                           ezSignal.sendOffer(pc.localDescription);
@@ -152,13 +152,12 @@ EZWebRTC.prototype = {
                         //returns pc, calls sendAnswer on add media
                         this.setupPC(options,this.sendAnswer.bind(this));
                         offer = new sessionDescription(offer)
-                        this.pc.setRemoteDescription(offer,console.log,logError);
+                        this.pc.setRemoteDescription(offer,function(){},logError);
     },
 
     sendAnswer:    function(offer){
                       var ezSignal = this.ezSignal,
                           pc       = this.pc;
-
                       pc.createAnswer(function (answer) {
                           pc.setLocalDescription(answer, function() {
                               ezSignal.sendAnswer(pc.localDescription);
@@ -185,6 +184,9 @@ EZWebRTC.prototype = {
                       var pc   = this.pc  = new peerConnection(config.pc),
                           ezSignal = this.ezSignal;
 
+
+                      console.log('here');
+
                       // send any ice candidates to the other peer
                       // Firefox includes ice candidate in sdp
                       pc.onicecandidate = function (evt) {
@@ -207,10 +209,23 @@ EZWebRTC.prototype = {
     },
 
     createDataChannel:  function(name,options){
-                      name     = name || 'somerandomstringwithoutspaces';
-                      optionsn = optins || {};
+                      name     = name || 'somerandomstringwithoutspaces'+new Date();
+                      options = options || {};
+                      var pc = this.pc;
 
-                      var channel = this.pc.createDataChannel(name, options);
+                      var channel = this.channel = pc.createDataChannel(name, options);
+                      console.log('channel',channel);
+                      channel.onmessage = function (event) {
+                      console.log("received: " + event.data);
+                    };
+
+                    channel.onopen = function () {
+                      console.log("datachannel open");
+                    };
+
+                    channel.onclose = function () {
+                      console.log("datachannel close");
+                    };
     }
 
 };
@@ -252,7 +267,7 @@ EZSignal.prototype = {
 
   signal:     function(type,data){
                 this.socket.emit('signal',{type:type,data:data});
-                this.socket.emit('message',{type:type,data:data});
+                //this.socket.emit('message',{type:type,data:data});
   },
 
   sendOffer:  function(offer){
@@ -355,9 +370,7 @@ EZCallWidget.prototype = {
 
                     },
     addRemote:      function(stream){
-                      console.log('adding remote');
                       this.$widget.find('.remoteVideo').attr('src', URL.createObjectURL(stream));
-                      console.log(this.$widget.find('.remoteVideo'));
                     },
     addLocal:       function(stream){
 
