@@ -49,28 +49,30 @@ function logError(error) {
   console.log(error.name + ': ' + error.message);
 }
 
+var errorHandler = function (err) {
+    console.error(err);
+};
+
 //merges prototypes of child and super object
 function inherit(ctor, supCtor){
-    for (var prop in supCtor.prototype){
+    for (var prop in supCtor){
         if(!ctor.prototype[prop]){
-          ctor.prototype[prop] = supCtor.prototype[prop];
+          ctor.prototype[prop] = supCtor[prop];
         }
     }
 }
 
 //Basic EventHandler serving as super class for EZWebRTC
-var EventHandler = function(){
-      this.events = {}
-}
-
-EventHandler.prototype = {
+var EventHandler = {
 
   on:   function(eventName, fn) {
+            this.events = this.events || {};
             this.events[eventName] = this.events[eventName] || [];
             this.events[eventName].push(fn);
         },
 
   off:  function(eventName, fn) {
+            this.events = this.events || {};
             if (this.events[eventName]) {
               for (var i = 0; i < this.events[eventName].length; i++) {
                 if (this.events[eventName][i] === fn) {
@@ -82,6 +84,7 @@ EventHandler.prototype = {
         },
 
   emit: function(eventName, data) {
+            this.events = this.events || {};
             if (this.events[eventName]) {
               this.events[eventName].forEach(function(fn) {
                 fn(data);
@@ -118,10 +121,12 @@ EZWebRTC.prototype = {
 
 //https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/WebRTC_basics
     startVideoCall: function(){
+                      console.log('starting video call')
                       this.createOffer({ video: true, audio: true });
     },
 
     startAudioCall: function(){
+                      console.log('starting audio call')
                       this.createOffer({ video:false, audio: true });
     },
 
@@ -131,6 +136,7 @@ EZWebRTC.prototype = {
                     // offer generation triggered by pc.addstream
                     this.pc.onnegotiationneeded = this.sendOffer.bind(this);
     },
+
 
     sendOffer:      function(){
                       var pc       = this.pc,
@@ -166,9 +172,10 @@ EZWebRTC.prototype = {
     },
 
     handleAnswer:   function(answer){
+                      console.log('handling answer')
                       var pc = this.pc;
                       answer = new sessionDescription(answer);
-                      pc.setRemoteDescription(answer, console.log, logError);
+                      pc.setRemoteDescription(answer, function(){}, errorHandler);
     },
 
     handleICE:      function(iceCandidate){
@@ -206,6 +213,125 @@ EZWebRTC.prototype = {
                       }, logError);
 
                       return pc;
+    }
+
+};
+
+
+EZWebRTC.prototype = {
+
+  //detect supports requires injection of
+  //<script src="http://cdn.webrtc-experiment.com/DetectRTC.js"></script>
+    detect:   function(callback){
+                    var supports = this.supports;
+                    DetectRTC.load(function(){
+                        supports.calls      = supports.ezWebRTC &&
+                                              DetectRTC.hasMicrophone;
+                        supports.videoCalls = supports.ezWebRTC &&
+                                              DetectRTC.hasWebcam;
+                        if(callback){
+                          callback(supports);
+                        }
+                    });
+              },
+
+//https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/WebRTC_basics
+    startVideoCall: function(){
+                      console.log('starting video call')
+                      this.createOffer({ video: true, audio: true });
+    },
+
+    startAudioCall: function(){
+                      console.log('starting audio call')
+                      this.createOffer({ video:false, audio: true });
+    },
+
+    initPC:         function(){
+                      var self = this;
+                      var pc   = this.pc  = new peerConnection(config.pc),
+                          ezSignal = this.ezSignal;
+
+                      // send any ice candidates to the other peer
+                      // Firefox includes ice candidate in sdp
+                      pc.onicecandidate = function (evt) {
+                        if (!evt.candidate){return}
+                        ezSignal.sendICE(evt.candidate);
+                        pc.onicecandidate = false; // stop listening
+                      };
+                      // once remote stream arrives, show it in the remote video element
+                      pc.onaddstream = function (evt) {
+                        console.log('onaddstream');
+                        self.emit('remoteStream',evt.stream);
+                      };
+
+                      pc.onsignalingstatechange = function(event){
+                        console.log('signaling state: ', pc.signalingState);
+                        if (pc.signalingState=='stable'){
+                          console.log('stable adding media');
+                          self.addMedia();
+                        }
+                      };
+
+                      return pc;
+
+    },
+
+    createOffer:    function (){
+                      console.log('creatingoffer')
+                      var pc       = this.initPC(),
+                          ezSignal = this.ezSignal;
+
+                      var options = {
+                              offerToReceiveAudio: true,
+                              offerToReceiveVideo: true
+                      };
+                      setTimeout(function(){pc.createOffer(function (offer) {
+                          pc.setLocalDescription(offer, function() {
+                            ezSignal.sendOffer(pc.localDescription);
+                          }, errorHandler);
+                      }, errorHandler, options);},100)//onicechange
+
+    },
+
+    createAnswer:   function(offer){
+                      console.log('Creating answer')
+                      offer = new sessionDescription(offer);
+                      var pc      = this.initPC(),
+                          ezSignal = this.ezSignal;
+
+                      pc.setRemoteDescription(offer);
+
+                      pc.createAnswer(function (answer) {
+                        console.log('answercreated',answer)
+                        pc.setLocalDescription(answer, function() {
+                          ezSignal.sendAnswer(pc.localDescription);
+                        }, errorHandler);
+                      }, errorHandler);
+
+    },
+
+    addMedia:       function(options){
+                      options = options || {audio:true, video:true};
+                      var self = this,
+                          pc   = this.pc;
+                      console.log('addMedia')
+                      navigator.getUserMedia(options, function (stream) {
+                        self.emit('localStream',stream);
+                        pc.addStream(stream);
+                      }, logError);
+    },
+
+    handleAnswer:   function(answer){
+                      console.log('handling answer')
+                      var pc = this.pc;
+                      answer = new sessionDescription(answer);
+                      pc.setRemoteDescription(answer, function(){}, errorHandler);
+    },
+
+    handleICE:      function(iceCandidate){
+                      iceCandidate = new RTCIceCandidate(iceCandidate);
+                      this.pc.addIceCandidate(iceCandidate);
+                      //make sure pc exists!!!!!!!!!!
     },
 
     createDataChannel:  function(name,options){
@@ -229,18 +355,22 @@ EZWebRTC.prototype = {
     }
 
 };
+
+
+
 inherit(EZWebRTC,EventHandler);
 
 //constructor
 EZWebRTC.init = function(){
-  EventHandler.call(this);
   this.supports = {
     ezWebRTC:   DetectRTC.isWebRTCSupported && DetectRTC.isWebSocketsSupported,
     webRTC:     DetectRTC.isWebRTCSupported,
     webSockets: DetectRTC.isWebRTCSupported,
   };
   var ezSignal = this.ezSignal = new EZSignal(config.socket);
-  ezSignal.onOffer(this.handleOffer.bind(this));
+  //ezSignal.onOffer(this.handleOffer.bind(this));
+  //ezSignal.onAnswer(this.handleAnswer.bind(this));
+  ezSignal.onOffer(this.createAnswer.bind(this));
   ezSignal.onAnswer(this.handleAnswer.bind(this));
   ezSignal.onICE(this.handleICE.bind(this));
 };
@@ -308,11 +438,14 @@ EZSignal.prototype = {
 
 //requires jQuery
 var EZCallWidget = function(){
+    console.log('widget constr'
+    )
     //load detect, then on document ready show/hide
     var self = this;
     this.ezWebRTC = EZWebRTC();
     this.ezWebRTC.on('localStream',self.addLocal.bind(this));
     this.ezWebRTC.on('remoteStream',self.addRemote.bind(this));
+    $(document).ready(function(){console.log('docready')});
     $(document).ready(self.initWidget.bind(self));
 }
 
@@ -320,6 +453,7 @@ EZCallWidget.prototype = {
     element:      '.ez-call',
 
     initWidget:     function(){
+                      console.log('initwidget')
                       var self      = this,
                           supports  = self.ezWebRTC.supports,
                           ezWebRTC  = self.ezWebRTC;
@@ -330,12 +464,16 @@ EZCallWidget.prototype = {
                         return console.log('ezCall not available');
                       }
                       self.$widget.show();
-
+                      var second;
                       //detect async supports and enable buttons
                       ezWebRTC.detect(function(){
+                        if(second){return}
+                        second = true;
+                        console.log('detectedwebrtc')
                         if(supports.videoCalls){
 
                           self.onClickIcon(function(){
+                            console.log('adding click event')
                             ezWebRTC.startVideoCall();
                           });
                           self.enableVideo();
