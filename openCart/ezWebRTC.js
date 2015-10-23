@@ -267,10 +267,15 @@ EZWebRTC.prototype = {
                       pc.onsignalingstatechange = function(event){
                         console.log('signaling state: ', pc.signalingState);
                         if (pc.signalingState=='stable'){
-                          console.log('stable adding media');
-                          self.addMedia();
+                        //  self.addMedia();
                         }
                       };
+
+                      pc.oniceconnectionstatechange = function(event){
+                        console.log('ICE connection state change',pc.iceConnectionState)
+                        console.log(event);
+                      }
+
 
                       return pc;
 
@@ -285,11 +290,14 @@ EZWebRTC.prototype = {
                               offerToReceiveAudio: true,
                               offerToReceiveVideo: true
                       };
-                      setTimeout(function(){pc.createOffer(function (offer) {
-                          pc.setLocalDescription(offer, function() {
-                            ezSignal.sendOffer(pc.localDescription);
-                          }, errorHandler);
-                      }, errorHandler, options);},100)//onicechange
+
+                      this.addMedia({audio:true},function(){
+                          pc.createOffer(function (offer) {
+                              pc.setLocalDescription(offer, function() {
+                                ezSignal.sendOffer(pc.localDescription);
+                              }, errorHandler);
+                          }, errorHandler, options);//onicechange
+                      });
 
     },
 
@@ -301,23 +309,29 @@ EZWebRTC.prototype = {
 
                       pc.setRemoteDescription(offer);
 
-                      pc.createAnswer(function (answer) {
-                        console.log('answercreated',answer)
-                        pc.setLocalDescription(answer, function() {
-                          ezSignal.sendAnswer(pc.localDescription);
+                      this.addMedia({audio:true},function(){
+                        pc.createAnswer(function (answer) {
+                          console.log('answercreated',answer)
+                          pc.setLocalDescription(answer, function() {
+                            ezSignal.sendAnswer(pc.localDescription);
+                          }, errorHandler);
                         }, errorHandler);
-                      }, errorHandler);
+                      }
+
+                      );
+
 
     },
 
-    addMedia:       function(options){
-                      options = options || {audio:true, video:true};
+    addMedia:       function(options,callback){
+                      options = options || {audio:true, video:false};
                       var self = this,
                           pc   = this.pc;
                       console.log('addMedia')
                       navigator.getUserMedia(options, function (stream) {
                         self.emit('localStream',stream);
                         pc.addStream(stream);
+                        if(callback)callback();
                       }, logError);
     },
 
@@ -329,6 +343,7 @@ EZWebRTC.prototype = {
     },
 
     handleICE:      function(iceCandidate){
+                      console.log('handling ICE',this.pc);
                       iceCandidate = new RTCIceCandidate(iceCandidate);
                       this.pc.addIceCandidate(iceCandidate);
                       //make sure pc exists!!!!!!!!!!
@@ -388,6 +403,7 @@ var EZSignal = function(conf){
     this.socket.on('log',function(data){console.log(data);})
     this.socket.on('signal',function(data){
       if(self.listeners[data.type]){
+        console.log('signal received: ',data.type);
         self.listeners[data.type](data.data);
       }
     });
@@ -445,7 +461,6 @@ var EZCallWidget = function(){
     this.ezWebRTC = EZWebRTC();
     this.ezWebRTC.on('localStream',self.addLocal.bind(this));
     this.ezWebRTC.on('remoteStream',self.addRemote.bind(this));
-    $(document).ready(function(){console.log('docready')});
     $(document).ready(self.initWidget.bind(self));
 }
 
